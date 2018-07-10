@@ -1,0 +1,19 @@
+#include "global.th"
+
+//====================================================================
+string TEST_JSON_STRING = "{\"stringTest\":\"test123\"}";
+string TEST_JSON_NUMBER = "{\"numberTest\":101}";
+
+
+void on_sys_init()
+{
+	
+	sys.debugprint("String: " + json_stringify("stringTest", "Some Text") + "\n");
+	sys.debugprint("Number: " + json_stringify_number("numberTest", 1) + "\n");
+	sys.debugprint("Float: " + json_stringify_float("floatTest", 1.54, 3) + "\n");
+	sys.debugprint("Boolean: " + json_stringify_bool("boolTest", true) + "\n");
+	
+	sys.debugprint("\n");
+	sys.debugprint("Extract String from " + TEST_JSON_STRING + ": " + extract_json_parameter(TEST_JSON_STRING, "stringTest") + "\n");
+	sys.debugprint("Extract Number " + TEST_JSON_NUMBER + ": " + extract_json_parameter(TEST_JSON_NUMBER, "numberTest") + "\n");
+}

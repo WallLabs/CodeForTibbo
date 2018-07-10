@@ -1,0 +1,88 @@
+/**	
+*	The Tibbo JSON library provides a set of functions for the serialization and
+*	de-serialization of JSON data.
+*
+*	Company: 	WallLabs
+*	Author: 	Anthony Wall
+*	Version:	10/07/2018	
+*/
+#include "global.th";
+
+/**
+*	Function: json_stringify
+*	------------------------
+*	For a given type and value, generate a JSON string.
+*
+*	Overloads for numeric and boolean types included.
+*
+*	type&: The type name.
+*	value&: The value of the linked type.
+*
+*	returns: A JSON parseable string representing the type and value.
+*/
+string json_stringify(string& type, string& value)
+{
+	return "\"" + type + "\":\"" + value + "\"";
+}
+string json_stringify_number(string& type, unsigned short value)
+{
+	return "\"" + type + "\":" + str(value);
+}
+string json_stringify_bool(string& type, bool value)
+{
+	return "\"" + type + "\":" + str(value);
+}
+string json_stringify_float(string& type, float value, unsigned char limit)
+{
+	return "\"" + type + "\":" + ftostr(value, FTOSTR_MODE_PLAIN, limit);
+}
+
+/**
+*	Function: extract_json_parameter
+*	--------------------------------
+*	For a given JSON string and type, recover the stored value.
+*
+*	All data is returned "as-is" in string format. It is up to the
+*	calling function to convert where needed.
+*
+*	json: The JSON string.
+*	type: The type to look for.
+*
+*	returns: The value as a string.
+*/
+string extract_json_parameter(string& json, string& type)
+{
+	unsigned char start_pos;
+	unsigned char end_pos;
+	
+	start_pos = instr(1, json, type, 1);
+	if (start_pos != 0)
+	{		
+		// Look for the colon after the type and offset by 1.
+		start_pos = instr(start_pos, json, ":", 1)+1;
+
+		// If the character present is a speech mark then proceed with string extraction.
+		if (mid(json, start_pos, 1) == JSON_SPEECH_MARK)
+		{
+			start_pos += 1;
+			end_pos = instr(start_pos, json, JSON_SPEECH_MARK, 1);
+		}
+		// If not a string then use number extraction.
+		else
+		{
+			// Look for a comma, if no comma look for a closing curly brace.
+			end_pos = instr(start_pos, json, ",", 1);
+			if (end_pos == 0)
+			{
+				end_pos = instr(start_pos, json, JSON_TEMPLATE_END, 1);
+			}
+		}
+		
+		// Recover the value;
+		return mid(json, start_pos, end_pos-start_pos);
+	}
+	else
+	{
+		return "";
+	}
+}
