@@ -1,0 +1,21 @@
+#include "global.th"
+
+//====================================================================
+						
+// Test Routine
+void on_sys_init()
+{
+	sys.debugprint("Char 44: " + mid(B64_CHARS, 63, 1) + "\n");
+	sys.debugprint("Char 63: " + get_base64_character(63) + "\n");
+	return;
+	
+	
+	string test_checksum_key = "8WPTsN7M3GHpHK8wQQBwBw==";
+	string base64_checksum_test = test_checksum_key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+	string base64_test_string = sha1(base64_checksum_test, "", SHA1_FINISH, len(base64_checksum_test));
+	string output = base64_encode(base64_test_string);
+	
+	sys.debugprint("Original value: " + base64_test_string + "\n");
+	sys.debugprint("Base 64 encoded value: " + output + "\n");
+	sys.debugprint("Decoded value: " + base64_decode(output) + "\n");
+}

@@ -1,0 +1,32 @@
+#ifndef BASE64_H
+#define BASE64_H
+
+	//DEFINES-------------------------------------------------------------
+	#define B64_SEXTET_MASK 0x3F															// 6bit mask to be used in Base-64 Encoding.
+	#define B64_CHARS "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"	// Standard base64 character index set.
+	
+	// Conversion mode used in base64 encoding.
+	enum b64_conversion_mode
+	{
+		B64_UPDATE,	// 0 - Function as usual.
+		B64_FINAL	// 1 - Add extra checks for padding bytes.
+	};
+
+	//INCLUDES------------------------------------------------------------
+
+	//DECLARATIONS--------------------------------------------------------
+	string base64_encode(string& value);
+	string base64_decode(string& value);
+	
+	string pad_value(string& value);
+	
+	unsigned long convert_to_triplet(string& value, unsigned char start_point);
+	unsigned long recover_triplet(string& value);
+	
+	string convert_triplet_to_sextets(unsigned long triplet, b64_conversion_mode mode);
+	string<3> recover_ascii_characters(unsigned long triplet);
+	
+	string get_base64_character(unsigned char index);
+	unsigned char get_base64_index(string<1>& character);
+
+#endif

@@ -1,0 +1,324 @@
+/**
+*	Library: Base-64 Encoder
+*	------------------------
+*	This Base-64 encoder provides the means for encoding strings into a communication safe base64 string.
+*	The only function needed is b64_encode(string& value), this will take a string and directly return the
+*	base-64 encoded value.
+*
+*	Setup: Add base64.tc and base64.th to your project directory in TIDE.
+		   In your global.th (or any header(s) that need the base-64 encoder, <add #include "base64.th";> without the <> markers.
+		   You do NOT need to add main.tc or global.th for this library to work.
+*
+*	Company: WallLabs
+*	Author: Anthony Wall
+*	Version: 10/07/2018
+*/
+#include "base64.th";
+//--------------------------------------------------------
+
+//--------------------------------------------------------
+//--					Encoding						--
+//--------------------------------------------------------
+	
+/**
+*	Function: base64_encode
+*	--------------------
+*	Takes a given source string and returns a new string, encoded using base-64.
+*		1) Ensure string is correctly padded to be a mutliple of 3.
+*		2) Split the string into sets of 3 octets (triplets).
+*		3) For each triplet, split into a set of 4 sextets.
+*		4) For each sextet, convert into the appropriate base-64 character (See B64_CHARS).
+*		5) Repeat as needed, concatenating each set of characters as we go.
+*		6) Finally, return the encoded string.
+*
+*	&value: Reference to the string to be encoded.
+*
+*	returns: A base-64 encoded string representing &value.
+*/
+string base64_encode(string& value)
+{
+	unsigned long triplet = 0;
+	unsigned char sextet = 0;
+	string output = "";
+	
+	// Step 1 - Pad out value.
+	sys.debugprint("Length before: " + str(len(value)) + "\n");
+	pad_value(value);
+	sys.debugprint("Length after: " + str(len(value)) + "\n");
+	
+	// Step 2 & 5 - Iterate over each triplet.
+	unsigned char f;
+	for (f=1; f<len(value)+1; f+=3)
+	{
+		// Step 2 - Split into triplet
+		triplet = convert_to_triplet(value, f);
+		
+		// Step 3 & 4 - Split into sextets and recover the appropriate b64 character.
+		// Convert as normal unless we are converting the final triplet, then we must add padding
+		// equals where necessary.
+		if (f < (len(value)-2) )
+		{
+			output += convert_triplet_to_sextets(triplet, B64_UPDATE);
+		}
+		else
+		{
+			// Additional checks to add padding equals ('=').
+			output += convert_triplet_to_sextets(triplet, B64_FINAL);
+		}
+		
+	}
+	
+//	sys.debugprint("Initial value: " + value + "\n");
+//	sys.debugprint("Encoded value: " + output + "\n");
+	return output;
+}
+
+/**
+*	Function: pad_value
+*	-------------------
+*	For a given source string , concatenate a string of NULL characters to ensure the source string
+*	is a multiple of 3 in length but does not change the encoding result.
+*
+*	&value: Reference to the source string that needs padding.
+*
+*	returns: A string containing the required number of padding NULLs.
+*/
+string pad_value(string& value)
+{
+	unsigned char remainder = len(value)%3;	// Calculate the remainder.
+//	sys.debugprint("\tRemainder: " + str(remainder) + "\n");
+	
+	unsigned char f;
+	if (remainder != 0)
+	{
+		for (f=0; f<(3-remainder); f++)
+		{
+//			sys.debugprint("\tAdding null " + str(f) + "\n");
+			value += chr(0x00);	// Pad out with null values.
+		}
+	}
+	return value;
+}
+
+/**
+*	Function: convert_to_triplet
+*	----------------------------
+*	For a given source string, split into octets and return the combined 24-bit value.
+*
+*	&value: Reference to the string to be encoded.
+*	start_point: The character where the triplet should be split from.
+*
+*	returns: A triplet representing a set of three octets from &value.
+*/
+unsigned long convert_to_triplet(string& value, unsigned char start_point)
+{
+	unsigned long triplet = 0;
+	unsigned char temp_ascii_value;
+	
+	unsigned char g;
+	for (g=0; g<3; g++)
+	{
+		// Convert character into octet.
+		temp_ascii_value = asc(mid(value, start_point+g, 1));
+//		sys.debugprint("ASCII Value for octet " + str(g+1) + " : " + str(temp_ascii_value) + "\n");
+		
+		// Appropriatly shift and append the octet.
+		triplet += temp_ascii_value<<(8*(2-g));
+//		sys.debugprint("\tTriplet value now at " + lstr(triplet) + "\n");
+	}
+//	sys.debugprint("Triplet " + str(start_point/3) + ": " + lbin(triplet) + "\n");
+	return triplet;
+}
+
+/**
+*	Function: convert_triplet_to_sextets
+*	------------------------------------
+*	For a given 24-bit triplet, split into sextets and convert to the relevant base64 character before returning.
+*
+*	triplet The 24-bit triplet to be converted.
+*
+*	returns: A string representing the base-64 characters found within the triplet.
+*/
+string convert_triplet_to_sextets(unsigned long triplet, b64_conversion_mode mode)
+{
+	unsigned char sextet = 0;
+	string output = "";
+	
+	// Get each sextet in turn.
+	unsigned char g;
+	for (g=0; g<4; g++)
+	{
+		// Get each sextet value.
+		sextet = ( triplet>>(6*(3-g)) & (B64_SEXTET_MASK) );
+		
+		// If we have a valid character then simply append it, otherwise pad with the "=" character.
+		if(mode == B64_UPDATE || (mode == B64_FINAL && sextet != 0))
+		{
+			output += get_base64_character(sextet);
+		}
+		else
+		{
+			output += "=";		
+		}
+	}
+	return output;
+}
+
+
+//--------------------------------------------------------
+//--					Decoding						--
+//--------------------------------------------------------
+
+/**
+*	Function: base64_decode
+*	--------------------
+*	Take a given b64 encoded string and convert it back into the original information.
+*		1) Split into groups of 4 characters.
+*		2) Recover and combine the index of each character to form a 24bit number (triplet).
+*		3) Split that triplet into octets.
+*		4) Recover the orginal ASCII character from each octet.
+*		5) Return the decoded string.
+*	
+*	&value: The b64 encoded string to be decoded.
+*
+*	returns: The decoded b64 string in 8bit ASCII.
+*/
+string base64_decode(string& value)
+{
+	string quartet;
+	string output = "";
+	unsigned char octet = 0;
+	unsigned long triplet = 0;
+	
+	// Iterate over each base64 encoded quartet.
+	unsigned char f;
+	for (f=1; f<(len(value)+1); f+=4)
+	{
+		
+		// 1) - Split into quartets.
+		quartet = mid(value, f, 4);
+		
+		// 2) - Recover the triplet from the current quartet.
+		triplet = recover_triplet(quartet);
+//		sys.debugprint("Triplet " + str((f-1)/4) + ": " + lstr(triplet) + "\n");
+		
+		// 3 & 4) - Split the triplet into octets and recover the original ASCII characters.
+		output += recover_ascii_characters(triplet);
+	}
+	
+	// 5) - Return the decoded string.
+	return output;
+}
+
+/**
+*	Function: recover_triplet
+*	-------------------------
+*	For a given base64 quartet string recover the encoded triplet.
+*
+*	&value: The base64 encoded quartet string.
+*
+*	returns: A 24bit number representing the triplet.
+*/
+unsigned long recover_triplet(string& value)
+{
+	unsigned long triplet = 0;
+	
+	// Get the index of each character and shift into the triplet accordingly.
+	unsigned char g;
+	for (g=0; g<4; g++)
+	{
+		triplet += get_base64_index(mid(value, (g+1), 1))<<(6*(3-g));
+	}
+	
+	// Return the recovered triplet.
+	return triplet;
+}
+
+/**
+*	Function: recover_ascii_characters
+*	----------------------------------
+*	For a given base64 encoded triplet, recover the three enclosed ASCII characters.
+*
+*	triplet: The triplet to recover the characters from.
+*
+*	returns: A string representing the three ASCII characters.
+*/
+string<3> recover_ascii_characters(unsigned long triplet)
+{
+	string output = "";
+	unsigned char octet = 0;
+	
+	unsigned char g;
+	for (g=0; g<3; g++)
+	{
+		// Right shift each octet accordingly out of the triplet.
+		octet = triplet>>(8*(2-g));
+//		sys.debugprint("\tOctet " + str(g+1) + ": " + str(octet) + "\n");
+		
+		// Recover the original ASCII character.
+		output += chr(octet);
+	}
+	
+	// Return the recovered ASCII.
+	return output;
+}
+
+
+//--------------------------------------------------------
+//--					 System 						--
+//--------------------------------------------------------
+
+/**
+*	Function:get_base64_character
+*	-----------------------------
+*	For a given index, return the appropriate base-64 character.
+*
+*	index: The index of the character to return (index >= 0 && index <= 64)
+*
+*	returns: A base-64 character.
+*/
+string get_base64_character(unsigned char index)
+{
+	return mid(B64_CHARS, index+1, 1);
+}
+
+
+/**
+*	Function: get_base64_index
+*	--------------------------
+*	For a given character, return the b64 index code.
+*
+*	&character<1>: The single b64 character to find the index of. 
+*
+*	returns: The index of the provided character.
+*/
+unsigned char get_base64_index(string<1>& character)
+{
+	unsigned char count = 0;
+	
+	//If the character is a padding equals ('='), return 0.
+	if (character == "=")
+	{
+//		sys.debugprint("Found padding character, returning 0\n");
+		return 0;
+	}
+	
+	// Loop through each character looking for a match.
+	while (count < 64)
+	{
+		// If the character is found, return the the count variable, else increment and continue.
+		if (mid(B64_CHARS, (count+1), 1) == character)
+		{
+//			sys.debugprint("Character " + character + " found at index " + str(count) + "\n");
+			return count;
+		}
+		else
+		{
+			count++;
+		}
+	}
+	
+	// Character not found.
+//	sys.debugprint("Character " + character + " not found!\n");
+	return -1;
+}
