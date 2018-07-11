@@ -47,3 +47,28 @@ Output:
 
 	EM2000W>> Extract String from {"stringTest":"test123"}: test123
 	EM2000W>> Extract Number {"numberTest":101}: 101
+
+# Arrays
+To handle array types first extract the array value using the previous commands. 
+Once you have the json string representation of the array use the following commands to access the members:
+	
+	string value = extract_json_array_member(json_array, index);
+
+# Example
+The following code showcases an example of using json arrays in this library:
+
+Code:
+	
+	string TEST_JSON_ARRAY = "[1,2]";
+	string TEST_JSON_ARRAY_SINGLE = "[SINGLE]";	
+	
+	sys.debugprint("Extract Array " + TEST_JSON_ARRAY + ":\n\t" 
+		+ extract_json_array_member(TEST_JSON_ARRAY, 0) + "\n\t" + extract_json_array_member(TEST_JSON_ARRAY, 1) + "\n");
+	sys.debugprint("Extract Single From Array " + TEST_JSON_ARRAY_SINGLE + ": " + extract_json_array_member(TEST_JSON_ARRAY_SINGLE, 0) + "\n");
+
+Output:
+
+	EM2000W>> Extract Array [1,2]:
+	EM2000W>> 	1
+	EM2000W>> 	2
+	EM2000W>> Extract Single From Array [SINGLE]: SINGLE	

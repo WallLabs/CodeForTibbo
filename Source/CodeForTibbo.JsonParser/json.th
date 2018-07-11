@@ -5,12 +5,16 @@
 	#define JSON_SPEECH_MARK "" + chr(34)
 	#define JSON_TEMPLATE_START "{"
 	#define JSON_TEMPLATE_END "}"
+	#define JSON_ARRAY_START "["
+	#define JSON_ARRAY_END "]"
 
 	// DECLARATIONS
 	string json_stringify(string& type, string& value);
 	string json_stringify_number(string& type, unsigned short value);
 	string json_stringify_float(string& type, float value, unsigned char limit);
 	string json_stringify_bool(string& type, bool value);
+	
 	string extract_json_parameter(string& json, string& type);
+	string extract_json_array_member(string& json, unsigned char index);
 	
 #endif

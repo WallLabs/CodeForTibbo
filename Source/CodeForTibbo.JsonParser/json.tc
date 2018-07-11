@@ -86,3 +86,60 @@ string extract_json_parameter(string& json, string& type)
 		return "";
 	}
 }
+
+/**
+*	Function: extract_json_array_member
+*	-----------------------------------
+*	For a given JSON array string and index, recover the stored value.
+*
+*	All data is returned "as-is" in string format. It is up to the
+*	calling function to convert where needed.
+*
+*	json: The JSON string.
+*	index: Which array member to recover.
+*
+*	returns: The array value as a string.
+*/
+string extract_json_array_member(string& json, unsigned char index)
+{
+	unsigned char start_pos;
+	unsigned char end_pos;
+	
+	start_pos = instr(1, json, JSON_ARRAY_START, 1);
+	if (start_pos != 0)
+	{
+		// If we want to first member look for the first comma or the closing square brace.
+		if (index == 0)
+		{
+			// Offset past the opening square brace.
+			start_pos += 1;
+			
+			// Find the next comma or closing square brace.
+			end_pos = instr(start_pos, json, ",", 1);
+			if (end_pos == 0)
+			{
+				end_pos = instr(start_pos, json, JSON_ARRAY_END, 1);
+			}
+		}
+		// Otherwise look for the indexed number of commas (or closing square brace if not found)
+		else
+		{			
+			// Move the start position to the prior comma and offset.
+			start_pos = instr(start_pos, json, ",", index)+1;
+			
+			// Look for the next comma or closing square brace.
+			end_pos = instr(start_pos, json, ",", index+1);
+			if (end_pos == 0)
+			{
+				end_pos = instr(start_pos, json, JSON_ARRAY_END, 1);
+			}
+		}
+		
+		// Extract the parameter and return.
+		return mid(json, start_pos, end_pos-start_pos);
+	}
+	else
+	{
+		return "";
+	}
+}

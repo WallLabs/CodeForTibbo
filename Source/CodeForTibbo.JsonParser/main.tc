@@ -3,6 +3,8 @@
 //====================================================================
 string TEST_JSON_STRING = "{\"stringTest\":\"test123\"}";
 string TEST_JSON_NUMBER = "{\"numberTest\":101}";
+string TEST_JSON_ARRAY = "[1,2]";
+string TEST_JSON_ARRAY_SINGLE = "[SINGLE]";
 
 
 void on_sys_init()
@@ -16,4 +18,7 @@ void on_sys_init()
 	sys.debugprint("\n");
 	sys.debugprint("Extract String from " + TEST_JSON_STRING + ": " + extract_json_parameter(TEST_JSON_STRING, "stringTest") + "\n");
 	sys.debugprint("Extract Number " + TEST_JSON_NUMBER + ": " + extract_json_parameter(TEST_JSON_NUMBER, "numberTest") + "\n");
+	sys.debugprint("Extract Array " + TEST_JSON_ARRAY + ":\n\t" 
+		+ extract_json_array_member(TEST_JSON_ARRAY, 0) + "\n\t" + extract_json_array_member(TEST_JSON_ARRAY, 1) + "\n");
+	sys.debugprint("Extract Single From Array " + TEST_JSON_ARRAY_SINGLE + ": " + extract_json_array_member(TEST_JSON_ARRAY_SINGLE, 0) + "\n");
 }
