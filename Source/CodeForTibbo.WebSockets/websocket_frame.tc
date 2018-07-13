@@ -1,0 +1,288 @@
+/**
+*	Websocket Frame is a supporting class for the Tibbo Websocket Library.
+*	This file handles everything to do with preparing and interpreting data
+*	sent using the RFC6455 framing standard.
+*
+*	Company: 	WallLabs
+*	Author: 	Anthony Wall
+*	Version: 	13/07/2018
+*/
+#include "global.th";
+//-------------------------------------------
+
+/**
+*	Function: read_message
+*	----------------------
+*	For a given frame message, interpret the stored data.
+*
+*	&frame: The frame data to be read.
+*
+*	returns: The text message stored in the frame or an equivilant control message.
+*/
+string read_message(string& frame)
+{
+	// 1) First 2 characters in the stream are always config (Peek these).
+	config_frame settings;
+	configure_config_frame(settings, left(frame, 2));
+	
+	// Emulate removal of data from buffer.
+	frame = right(frame, len(frame)-2);
+	
+	// 2) The next step depends on the length value.
+	check_extended_length(settings, frame);
+	
+	
+	// 3) Now we can grab the mask key and store it in the config frame's mask array.
+	get_mask_array(settings, frame);
+	
+	// Emulate removal of data from buffer.
+	frame = right(frame, len(frame)-4);
+	
+	// 4) Finally, grab the actual data.
+	get_data(settings, frame);
+	
+	// 5) Check The Opcode.
+	switch (settings.opcode)
+	{
+	case WS_FRAME_CONTINUATION:
+		// NOT YET IMPLEMENTED
+		return "";
+		break;
+	
+	case WS_FRAME_TEXT:
+		return settings.data;
+		break;
+	
+	case WS_FRAME_CLOSE:
+		close_connection(settings.data);
+		return "";
+	
+	case WS_FRAME_PONG:
+		return "";
+	
+	default:
+		return "";
+	}
+}
+
+/**
+*	Function: send_message
+*	----------------------
+*	Formats an output string for the desired text message.
+*
+*	&data: The message to be sent.
+*
+*	returns: The configured output string.
+*/
+string send_message(string& data, ws_frame_opcodes opcode)
+{
+	sys.debugprint("Creating frame for " + data + "\n");
+	string output_stream = "";
+	config_frame outgoing_frame;
+	
+	// 1) Setup config bits
+	outgoing_frame.final = true;
+	outgoing_frame.rsv = 0;
+	outgoing_frame.opcode = opcode;
+	outgoing_frame.mask = 0;
+	outgoing_frame.length = len(data);
+	outgoing_frame.extended_lengths[0] = 0;
+	outgoing_frame.extended_lengths[1] = 0;
+	
+	// 2) Convert config frame into a 16bit value
+	output_stream = convert_config_frame_to_stream(outgoing_frame);
+
+	// 3) Add data
+	output_stream += data;
+	
+	return output_stream;
+}
+
+
+/**
+*	Function: convert_config_frame_to_stream
+*	----------------------------------------
+*	For a given config frame, return a set of ASCII characters representing
+*	the underlying bit values.
+*
+*	&config: The config frame to convert.
+*
+*	returns: A string representing the config frame.
+*/
+string<10> convert_config_frame_to_stream(config_frame& config)
+{
+	unsigned int config_value = 0;
+	string output_stream = "";
+	
+	config_value += config.final << 15; 	// Final
+	config_value += config.rsv << 12; 		// RSV
+	config_value += config.opcode << 8; 	// Opcode
+	config_value += config.mask << 7; 		// Mask key
+	config_value += config.length; 			// Length
+	
+	// Convert the config value into an ASCII stream.
+	output_stream += chr(config_value >> 8) + chr(config_value & 0x00FF);
+	
+	// Add any extra characters.
+	unsigned char f;
+	unsigned char g;
+	for (f=0; f<2; f++)
+	{
+		if(config.extended_lengths[f] > 0)
+		{
+			for (g=0; g<4; g++)
+			{
+				output_stream += chr( config.extended_lengths[f] & (0xFF<<(8*f)) >> (8*(3-g)) );
+			}
+		}
+	}
+	
+	// Return the character stream.
+	return output_stream;
+}
+
+/**
+*	Function: configure_config_frame
+*	--------------------------------
+*	For a given couplet of ascii characters, derive the relevant frame information.
+*
+*	&config: The config_frame object to store information into.
+*/
+void configure_config_frame(config_frame& config, string<2> config_characters)
+{
+	unsigned int config_value = (asc(left(config_characters, 1))<<8) + asc(mid(config_characters, 2, 1));
+	
+	config.final = (config_value & 0x8000)>>15;
+	config.rsv = (config_value & 0x7000)>>12;
+	config.opcode = (config_value & 0x0F00)>>8;
+	config.mask = (config_value & 0x0080)>>7;
+	config.length = (config_value & 0x007F);
+	config.extended_lengths[0] = 0;
+	config.extended_lengths[1] = 0;
+	config.data = "";
+	
+	sys.debugprint("WS> Final: " + str(config.final) + "\n");
+	sys.debugprint("WS> RSV: " + str(config.rsv) + "\n");
+	sys.debugprint("WS> Opcode: " + str(config.opcode) + "\n");
+	sys.debugprint("WS> sMask: " + str(config.mask) + "\n");
+	sys.debugprint("WS> Length: " + str(config.length) + "\n");
+}
+
+/**
+*	Function: check_extended_length
+*	-------------------------------
+*	For a given config frame, check whether the length exceeds 126 bytes and store
+*	the extended length if needed.
+*
+*	&config: The config frame to store information in.
+*/
+void check_extended_length(config_frame& config, string& frame)
+{
+	// When the length is 126, take the next two characters and add it to 126.
+	unsigned char f;
+	if (config.length == 126)
+	{		
+		for (f=0; f<2; f++)
+		{
+			config.extended_lengths[0] += asc(mid(frame, f+1, 1))<<(8*(1-f));
+		}
+		
+		// Emulate removal of data from buffer.
+		frame = right(frame, len(frame)-2);
+		
+	}
+	// Otherwise, if the length is 127, take the next eight characters.
+	else if (config.length == 127)
+	{		
+		for (f=0; f<8; f++)
+		{
+			if (f < 4)
+			{
+				config.extended_lengths[0] += asc(mid(frame, f+1, 1))<<(8*(1-(f%4)));
+			}
+			else
+			{
+				config.extended_lengths[1] += asc(mid(frame, f+1, 1))<<(8*(1-(f%4)));
+			}
+		}
+		
+		// Emulate removal of data from buffer.
+		frame = right(frame, len(frame)-8);
+	}
+	sys.debugprint("WS> Extended length 1: " + lstr(config.extended_lengths[0]) + "\n");
+	sys.debugprint("WS> Extended length 2: " + lstr(config.extended_lengths[1]) + "\n");
+}
+
+/**
+*	Function: get_mask_array
+*	------------------------
+*	Gets the 8bit mask array from a data stream and stores it in a provided config frame. 
+*
+*	&config: The config frame to store the mask array in.
+*/
+void get_mask_array(config_frame& config, string& frame)
+{	
+	// Load each character into the mask array.
+	unsigned char f;
+	for (f=0; f<4; f++)
+	{
+		config.mask_key[f] = asc(mid(frame, f+1, 1));
+		
+		sys.debugprint("WS> Mask Key value " + str(f+1) + ": " + hex(config.mask_key[f]) + "\n");
+	}
+}
+
+/**
+*	Function: get_data
+*	------------------
+*	For a given config frame, get the data bytes from the stream as noted by the frame's length(s) property.
+*
+*	&config: The config frame contianing the length and data storage.
+*/
+void get_data(config_frame& config, string& frame)
+{	
+	unsigned char temp_data;
+	unsigned char f;
+	for (f=0; f<config.length; f++)
+	{
+		// Get the next character.
+		temp_data = asc(mid(frame, f+1, 1));
+		
+		// XOR with the relevant mask byte.
+		temp_data = temp_data ^ config.mask_key[f%4];
+		
+		// Append the character to the data stream.
+		config.data += chr(temp_data);
+	}
+	
+	// Emulate removal of data from buffer.
+	frame = right(frame, len(frame)-config.length);
+	
+	if (config.extended_lengths[0] != 0)
+	{
+		for (f=0; f<config.extended_lengths[0]; f++)
+		{
+			temp_data = asc(mid(frame, f+1, 1));
+			
+			temp_data = temp_data ^ config.mask_key[f%4];
+			
+			config.data += chr(temp_data);
+		}
+	}
+	
+	// Emulate removal of data from buffer.
+	frame = right(frame, len(frame)-config.extended_lengths[0]);
+	
+	if (config.extended_lengths[1] != 0)
+	{
+		for (f=0; f<config.extended_lengths[1]; f++)
+		{
+			temp_data = asc(mid(frame, f+1, 1));
+			
+			temp_data = temp_data ^ config.mask_key[f%4];
+			
+			config.data += chr(temp_data);
+		}
+	}
+	sys.debugprint("WS> Read: " + config.data + "\n");
+}

@@ -1,0 +1,42 @@
+#ifndef WEBSOCKET_H
+#define WEBSOCKET_H
+	//DEFINES-------------------------------------------------------------
+	// All WS definitions as per RFC 6455 specification.
+	#define WS_HOST "Host"							// The host address.
+	#define WS_UPGRADE "Upgrade"					// Websocket request.
+	#define WS_KEY "Sec-WebSocket-Key"				// The unique request checksum key.
+	#define WS_CONNECTION "Connection"				// The connection type.
+	#define WS_PROTOCOL "Sec-WebSocket-Protocol"	// Any extra (or user defined) protocols to implement.
+	#define WS_VERSION "Sec-WebSocket-Version"		// The Websocket version to be used.
+	
+	#define WS_GLOBAL_STRING "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"	// The global string used in the Websocket checksum.
+	#define WS_DEBUG_PRINT 1	// Default (0) - When true (1), prints extra debug information to the console. [Ignored in release mode]
+	
+	// Template header for accepting a WebSocket handshake.
+	#define WS_HANDSHAKE_RESPONSE  "HTTP/1.1 101 Switching Protocols\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Accept: "
+	
+	/**
+	*	Struct: websocket
+	*	-----------------
+	*	This websocket struct provides a simple, object styled way of
+	*	tracking the current state of any given websocket.
+	*/
+	struct websocket
+	{
+		unsigned char socket;	// The tibbo socket number of this particular websocket.
+		bool is_open;			// True if the websocket connection is open and in use, false if closed.
+		bool is_waiting;		// True if this particular websocket is in the middle of a fragmented frame exchange.
+		string data;			// Used as a primary buffer for fragmented data, not used in single frame exchanges.
+	};
+
+	//INCLUDES------------------------------------------------------------
+	
+	//DECLARATIONS--------------------------------------------------------
+	void ws_assign_socket(unsigned char id);
+	string open_connection(string& incoming_header);
+	void close_connection(string& close_frame);
+	void ws_proc_data();
+	
+	extern void callback_websocket_message(string& request);
+	
+#endif

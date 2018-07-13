@@ -1,0 +1,222 @@
+/**
+*	Tibbo Websocket is a supporting library aimed at extending the default socket
+*	functionality to support RFC6455 Websocket upgrade requests.
+*	
+*	This file in particular provides funcitonality for establishing a websocket connection
+*	and delagating data framing processes to the Websocket Frame sub-library.
+*
+*	Pre-Requisites: Tibbo Websocket relies on the accompanying Base64 Encoder and included Websocket Frame libraries.
+*
+*	Setup: 	After adding the relevant files to your project, add the <ws_proc_data(string& data)> function
+*			to your on_sock_data_arrival() event handler and the <callback_websocket_message(string& data)> function.
+*			
+*			In order to accept incoming connections you must also add <ws_assign_socket(unsigned char id)> to your
+*			device set-up routine.
+*
+*	Company:	WallLabs
+*	Author: 	Anthony Wall
+*	Version: 	13/07/2018
+*/
+#include "global.th";
+
+// Store whether a given websocket is connected or not.
+bool WEB_SOCKETS[255];
+
+// Private functions
+string parse_parameter(string& header, string& parameter);
+string calculate_checksum(string& key);
+string generate_websocket_upgrade_response(string& checksum);
+bool is_web_socket(unsigned char socket_number);
+
+
+/**
+*	Function: is_web_socket
+*	-----------------------
+*
+*	socket_number: The socket to be checked.
+*
+*	returns: True if the given socket is a connected WebSocket.
+*/
+bool is_web_socket(unsigned char socket_number)
+{
+	return WEB_SOCKETS[socket_number];
+}
+
+/**
+*	Function: ws_assign_socket
+*	--------------------------
+*	Configure a given socket to receive incoming websocket data.
+*
+*	id: The socket number to configure.
+*/
+void ws_assign_socket(unsigned char id)
+{
+	// Configure settings
+	sock.num=id;
+	sock.inconmode= PL_SOCK_INCONMODE_ANY_IP_ANY_PORT;
+	sock.localportlist= "1001";
+	sock.protocol=PL_SOCK_PROTOCOL_TCP;
+	sock.reconmode=PL_SOCK_RECONMODE_3;
+	
+	// Request socket buffers.
+	sock.rxbuffrq(5);
+	sock.txbuffrq(10);
+	sock.varbuffrq(5);
+}
+
+/**
+*	Function: websocket.open_connection
+*	-----------------------------------
+*	Establishes a new websocket connection.
+*	
+*	incoming_header: The header data received to the socket.
+*
+*	returns: An appropriate HTTP upgrade response.
+*/
+string open_connection(string& incoming_header)
+{
+	
+	// Mark the socket as an active websocket connection.
+	WEB_SOCKETS[sock.num] = true;
+	
+	// Get the key from the incoming request.
+	string checksum = parse_parameter(incoming_header, WS_KEY);
+	
+	// Encode the key to match Websocket standards.
+	checksum = calculate_checksum(checksum);
+	
+	// Return the HTTP upgrade response with the appropriate Accepts-Key.
+	return generate_websocket_upgrade_response(checksum);
+	
+}
+
+/**
+*	Function: close_connection
+*	--------------------------
+*	Closes the current WebSocket connection.
+*
+*	close_frame&: The reason, if any, for the closed connection.
+*/
+void close_connection(string& close_frame)
+{
+	sys.debugprint("\n\nWS> CONNECTION CLOSE REQUEST\n\n");
+	// Clear the current WebSocket from the storage list.
+	WEB_SOCKETS[sock.num] = false;
+	
+	// Send back the close frame.
+	sock.setdata(send_message(close_frame, WS_FRAME_CLOSE));
+	sock.send();
+}
+
+/**
+*	Function: websocket.parse_parameter
+*	-----------------------------------
+*	For a given HTTP parameter, return the corresponding value.
+*
+*	header: Pointer to the source header
+*	parameter: The parameter to get the value of.
+*
+*	returns: The value linked to a given HTTP parameter.
+*/
+string parse_parameter(string& header, string& parameter)
+{
+	unsigned char start_pos = instr(1, header, parameter, 1);
+	unsigned char end_pos = 0;
+	
+	// If the parameter exists, find the value.
+	if (start_pos != 0)
+	{
+		// Setup pointers around the value
+		start_pos = instr(start_pos, header, " ", 1)+1;
+		end_pos = instr(start_pos, header, "\r\n", 1);
+		
+		// Return the value.
+		return mid(header, start_pos, (end_pos-start_pos));
+	}
+	else
+	{
+		return "-1";
+	}
+}
+
+/**
+*	Function: calculate_checksum
+*	--------------------------------------
+*	For a given Websocket Key, generate the correct checksum.
+*		1) Append global string.
+*		2) SHA1 result.
+*		3) Return result encoded in base64.
+*
+*	key: Pointer to the provided Websocket Key.
+*
+*	returns: The checksum output hashed with sha1 and encoded in base64.
+*/
+string calculate_checksum(string& key)
+{
+	// Append global string.
+	string checksum = key + WS_GLOBAL_STRING;
+	
+	// SHA1 encode the key.
+	checksum = sha1(checksum, "", SHA1_FINISH, len(checksum));
+	
+	// Base64 encode and return the final checksum.
+	return base64_encode(checksum);
+	
+}
+
+/**
+*	Function: generate_websocket_upgrade_response
+*	---------------------------------------------
+*	For a given checksum, generate the appropriate response to confirm a websocket connection.
+*	
+*	&checksum: The encoded checksum that should be sent back to the origin.
+*
+*	returns: The formatted HTTP response.
+*/
+string generate_websocket_upgrade_response(string& checksum)
+{
+	return WS_HANDSHAKE_RESPONSE + checksum + "\r\n\r\n";
+}
+
+/**
+*	Function: ws_proc_data
+*	----------------------
+*	Check incoming data for websocket requests.
+*/
+void ws_proc_data()
+{	
+	// Store incoming data into a HTTP buffer.
+	sys.debugprint("RX buffer size: " + str(sock.rxlen/255) + "\n");
+	string buffer;
+	while (sock.rxlen > 0)
+	{
+		// Pull the data into the buffer.
+		buffer = sock.getdata(255);
+		
+		// Look for a handshake request key.
+		if (!is_web_socket(sock.num) && instr(1, buffer, "Sec-WebSocket-Key", 1) != 0)
+		{			
+			// Ensure the TX buffer is cleared to prevent ghost packets.
+			sock.txclear();
+			
+			buffer = open_connection(buffer);	
+			
+			sock.rxclear();
+			sys.debugprint("Sending Websocket Handshake response back\n");
+			sock.setdata(buffer);
+			sock.send();
+		}
+		// Otherwise ensure this isnt a HTTP call and attempt to frame the buffer and look for text data.
+		else if (instr(1, buffer, "HTTP", 1) == 0)
+		{
+			// Check frame buffer.
+			string request = read_message(buffer);
+			
+			// Do something with the message.
+			if (request != "")
+			{
+				callback_websocket_message(request);
+			}
+		}
+	}
+}

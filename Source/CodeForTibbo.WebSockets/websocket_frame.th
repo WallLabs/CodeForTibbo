@@ -1,0 +1,38 @@
+#ifndef WS_FRAME_H
+#define WS_FRAME_H
+	enum ws_frame_opcodes
+	{
+		WS_FRAME_CONTINUATION,		// 0x00 (0) - Continuation Data Frame
+		WS_FRAME_TEXT,				// 0x01 (1) - Text Data Frame
+		WS_FRAME_BINARY,			// 0x03 (3) - Binary Data Frame
+		WS_FRAME_CLOSE = 0x08,		// 0x08 (8) - Close Command Frame
+		WS_FRAME_PING,				// 0x09 (9) - Ping Command Frame
+		WS_FRAME_PONG				// 0x0A (10) - Pong Command Frame
+	};
+
+	struct config_frame
+	{
+		bool final;
+		unsigned char rsv;
+		ws_frame_opcodes opcode;
+		bool mask;
+		unsigned char length;
+		unsigned long extended_lengths[2];
+		unsigned char mask_key[4];
+		string data;
+	};
+
+	//INCLUDES------------------------------------------------------------
+
+	//DECLARATIONS--------------------------------------------------------
+	string send_message(string& data, ws_frame_opcodes opcode);
+	string read_message(string& frame);
+
+	void configure_config_frame(config_frame& config, string<2> config_characters);
+	string<10> convert_config_frame_to_stream(config_frame& config);
+
+	void check_extended_length(config_frame& config, string& frame);
+	void get_mask_array(config_frame& config, string& frame);
+	void get_data(config_frame& config, string& frame);
+
+#endif

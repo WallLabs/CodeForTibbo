@@ -1,0 +1,15 @@
+#ifndef GLOBAL_H
+#define GLOBAL_H
+
+	//DEFINES-------------------------------------------------------------
+	#define SOCK_MAX_SIGNATURE_LEN 10
+
+	//INCLUDES------------------------------------------------------------
+	#includeb "global.tbh";
+	#include "base64.th";
+	#include "websocket.th";
+	#include "websocket_frame.th";
+
+	//DECLARATIONS--------------------------------------------------------
+	
+#endif

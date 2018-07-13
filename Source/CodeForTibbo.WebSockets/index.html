@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>WebSocket Test</title>
+
+        <h1>WebSocket Test page</h1>
+    </head>
+
+    <body>
+        <!-- Send Message over WebSocket -->
+        <h3>Send a Message</h3>
+        <div>
+            <input type="text" value="Ping" id="wsMessageBox"/>
+            <span><button onclick="sendMessage()">Send</button></span>
+        </div>
+
+        <!-- Component divider -->
+        <br />
+        <hr />
+        
+        <!-- Response from WebSocket -->
+        <h3>Response</h3>
+        <div>
+            <input type="text" id="wsResponseBox" readonly />
+        </div>
+		
+		<!-- Component divider -->
+        <br />
+        <hr />
+		
+		<!-- Server Log -->
+		<h3>Server Log</h3>
+        <div>
+            <textarea rows="40" cols="100" id="wsLogBox"></textarea>
+        </div>
+        
+        <!-- Supporting JS -->
+        <script>
+            var connection = new WebSocket("ws://10.132.78.121:1001");
+
+            connection.onopen = function() {
+                logMessage("<< WebSocket connection established!");
+                connection.send("Ping");
+            };
+
+            connection.onerror = function(e) {
+                logMessage(e.data);
+            };
+
+            connection.onmessage = function(response) {
+                logMessage("<< " + response.data);
+				document.getElementById("wsResponseBox").value = response.data;
+            };
+
+            function sendMessage() {
+                var message = document.getElementById("wsMessageBox").value;
+                logMessage(">> Sending: " + message);
+                connection.send(message);
+            }
+			
+			function logMessage(message) {
+				var logs = document.getElementById("wsLogBox").value;
+				logs += "SERVER " + message + "\n";
+				document.getElementById("wsLogBox").value = logs;
+			}
+        </script>
+    </body>
+</html>

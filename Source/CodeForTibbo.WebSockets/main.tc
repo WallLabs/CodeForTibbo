@@ -1,0 +1,62 @@
+#include "global.th"
+
+//====================================================================
+
+void on_sys_init()
+{
+	
+	// Assign an IP address for the Tibbo device.
+	net.ip= "10.132.78.121";
+	
+	// Configure HTTP server sockets.
+	unsigned char f;
+	for (f=0; f<4; f++)
+	{
+		sock.num= sock_get("HTTP" + str(f+1));
+		sock.inconmode= PL_SOCK_INCONMODE_ANY_IP_ANY_PORT;
+		sock.httpportlist= "80";
+		sock.httpmode=YES;
+		sock.protocol=PL_SOCK_PROTOCOL_TCP;
+		sock.reconmode=PL_SOCK_RECONMODE_3;
+		sock.rxbuffrq(1);
+		sock.txbuffrq(5);
+		sock.varbuffrq(1);
+	}
+	
+	// Configure a single WebSocket.
+	ws_assign_socket(sock_get("WEBSOCKET"));
+	
+	// Allocate requested memory.
+	sys.buffalloc();
+}
+
+void on_sock_data_arrival()
+{	
+	ws_proc_data();
+}
+
+void callback_websocket_message(string& data)
+{
+	string response = "";
+	
+	// Example command parser.
+	if (data == "Ping")
+	{
+		response = send_message("Pong!", WS_FRAME_TEXT);
+	}
+	else
+	{
+		response = send_message("Received: " + data, WS_FRAME_TEXT);
+	}
+	
+	if (WS_DEBUG_PRINT)
+	{
+		sys.debugprint("Client sent: " + data + "\n");
+		sys.debugprint("Sending back: " + response + "\n");
+		sys.debugprint("Sending response over socket " + str(sock.num) + "\n");
+	}
+	
+	// Send back the response.
+	sock.setdata(response);
+	sock.send();
+}
